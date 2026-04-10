@@ -1,0 +1,25 @@
+# backend/requirements.txt
+# HuntAI - AI Job Hunter Agent
+# All core dependencies for backend execution
+
+fastapi
+uvicorn
+gspread
+google-auth
+openpyxl
+pydantic
+pydantic-settings
+httpx==0.24.1
+pyjwt
+python-multipart
+slowapi
+pdfplumber
+python-docx
+playwright
+supabase
+python-dotenv
+asyncio-throttle
+psycopg2-binary
+groq
+seleniumbase
+nodriver

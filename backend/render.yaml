@@ -1,0 +1,33 @@
+# backend/render.yaml
+# HuntAI - AI Job Hunter Agent
+# Render Deployment Blueprint (IAC)
+
+# Blueprints help automate deployment on Render
+services:
+  - type: web
+    name: huntai-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: free # Can upgrade to specialized instance for higher scraping loads
+    healthCheckPath: /health
+    autoDeploy: true
+
+    # Environment Variables
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: SUPABASE_JWT_SECRET
+        sync: false # Set manually in Render dashboard for security
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+    # Disk to persist logs/exports if needed (Not available on free tier, using Supabase logging)
+    # disk:
+    #   name: huntai-data
+    #   mountPath: /app/logs
+    #   sizeGB: 1

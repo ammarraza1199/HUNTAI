@@ -1,0 +1,443 @@
+AI Job Hunter Agent — Master Prompt (Updated)
+
+🎯 PROJECT OVERVIEW
+Build a complete, production-ready Python application called "AI Job Hunter Agent" that:
+
+Accepts a user's resume (PDF/DOCX) as input
+Extracts structured information (skills, roles, experience, education)
+Scrapes fresh job postings (last 24 hours) from: LinkedIn, Indeed, Naukri
+Filters jobs posted within last 24 hours (prefers 4–12 hours)
+Analyzes each job against the resume using Groq AI
+Generates: Match score, Missing skills, Resume suggestions, Cover letter
+Attempts to find HR/hiring manager contact (if possible, else blank)
+Stores all results into Google Sheets
+
+
+🏗️ FOLDER STRUCTURE
+/job-agent
+  /scraper
+    linkedin.py
+    indeed.py
+    naukri.py
+  /utils
+    time_parser.py
+    groq_engine.py
+    sheet.py
+    deduplicator.py
+    retry_handler.py
+    cookie_manager.py
+    fingerprint_spoofer.py
+  /services
+    resume_parser.py
+    job_matcher.py
+  main.py
+  config.py
+  requirements.txt
+  README.md
+  .env.example
+
+⚠️ PLATFORM-SPECIFIC SCRAPING — PROBLEMS & EXACT SOLUTIONS
+This is the most critical section. Every problem must be handled with working code, not comments.
+
+1. 🔵 LINKEDIN SCRAPING
+Problems & Exact Solutions:
+Problem 1: Login Wall
+
+LinkedIn forces login to view most job listings
+Solution: Use Playwright storage_state to save and reuse browser session cookies after a one-time manual login. Implement a cookie_manager.py that checks if linkedin_session.json exists and is still valid. If expired, launch a visible browser (headless=False), prompt user to log in manually, then save the session automatically.
+
+Problem 2: Anti-Bot Detection (Biggest Challenge)
+
+LinkedIn uses sophisticated bot detection: checks for headless Chrome flags, missing browser plugins, abnormal mouse movement, uniform timing patterns, missing HTTP headers
+Solution:
+
+Use playwright-stealth library to patch all headless detection flags
+Inject realistic browser fingerprint: set proper user-agent, navigator.webdriver = false, navigator.plugins, navigator.languages
+Add fingerprint_spoofer.py that randomizes: screen resolution, timezone, platform string, canvas fingerprint noise
+Always launch with channel="chrome" (real Chrome, not Chromium) if available
+Add args=["--disable-blink-features=AutomationControlled"] to launch options
+
+
+
+Problem 3: Rate Limiting & Account Bans
+
+Too many requests = temporary or permanent ban
+Solution:
+
+Hard cap: never scrape more than 25 jobs per LinkedIn session
+Random delay between every action: random.uniform(3, 7) seconds
+Simulate human scrolling: scroll by 300–500px, pause 1–2 seconds, repeat
+Never run LinkedIn scraper more than once per hour
+If HTTP 429 or "unusual activity" page detected → immediately stop, save state, wait 30 minutes before retry
+Rotate between 2–3 different user-agent strings
+
+
+
+Problem 4: Dynamic DOM & Unstable Class Names
+
+LinkedIn changes class names frequently (e.g., .job-card-container__link becomes something else)
+Solution:
+
+Use semantic/structural selectors: [data-job-id], [data-tracking-id], aria-label attributes — these are stable
+Use XPath based on text content as fallback: //span[contains(text(),'ago')]
+Implement selector fallback chains: try selector A → if fails try B → if fails try C → log and skip
+
+
+
+Problem 5: Infinite Scroll / Pagination
+
+Jobs load dynamically as you scroll, no traditional pagination
+Solution:
+
+After page load, scroll to bottom in increments
+Wait for new job cards to appear using page.wait_for_selector() with timeout
+Track count of loaded jobs before and after each scroll
+If count doesn't increase after 3 consecutive scrolls → stop scrolling
+Max scroll attempts: 10
+
+
+
+Problem 6: "Just Now" / Relative Timestamps
+
+LinkedIn shows "2 hours ago", "Just now", "1 day ago" — not absolute dates
+Solution: Implement time_parser.py with full normalization:
+
+"just now" or "moments ago" → 0 hours
+"X minutes ago" → X/60 hours
+"X hours ago" → X hours
+"X days ago" → X * 24 hours (filter these out as > 24h)
+Store both raw string and computed hours and absolute UTC timestamp
+
+
+
+
+2. 🟢 INDEED SCRAPING
+Problems & Exact Solutions:
+Problem 1: DOM Structure Changes
+
+Indeed updates their HTML structure regularly, breaking selectors
+Solution:
+
+Use URL param fromage=1 to filter last 24 hours at source
+Use multiple fallback selectors for each field wrapped in try/except
+Primary: [data-testid="job-title"] → Fallback: h2.jobTitle a → Last resort: first <h2> inside job card
+Log which selector succeeded for monitoring purposes
+
+
+
+Problem 2: Missing Fields in Job Cards
+
+Some cards missing salary, location, or company name
+Solution:
+
+Wrap every field extraction in individual try/except
+Default all missing fields to empty string ""
+Never let one missing field crash the entire job extraction
+Validate extracted data with a schema checker before adding to results
+
+
+
+Problem 3: Relative Timestamps
+
+"Just posted", "Today", "1 day ago" instead of real dates
+Solution: Same time_parser.py normalization as LinkedIn. Special cases:
+
+"Just posted" → 0 hours
+"Today" → treat as 1 hour (conservative)
+"Active 3 days ago" → 72 hours (filter out)
+
+
+
+Problem 4: CAPTCHA on Heavy Scraping
+
+Indeed may show CAPTCHA after many rapid requests
+Solution:
+
+Add random.uniform(2, 5) seconds between page loads
+Use realistic headers: Accept-Language, Referer, Accept-Encoding
+Limit to 50 jobs per run
+If CAPTCHA detected (check for id="captcha-box" or similar) → stop scraper, log warning, return partial results
+
+
+
+Problem 5: Pagination
+
+Indeed uses numbered pages (&start=10, &start=20)
+Solution:
+
+Loop through pages programmatically
+Stop when: no new jobs found, job count < 10 per page, or 24-hour filter catches nothing new
+Max pages: 5
+
+
+
+
+3. 🟠 NAUKRI SCRAPING
+Problems & Exact Solutions:
+Problem 1: Heavy JavaScript Rendering
+
+Naukri is a React SPA — raw HTTP requests return empty shells
+Solution: Use Playwright exclusively. Never use requests or httpx for Naukri. Wait for networkidle state before extracting content.
+
+Problem 2: Unstable CSS Class Names
+
+Naukri uses auto-generated class names that change on every build
+Solution:
+
+Use data-* attributes and aria-* attributes exclusively
+Use structural selectors: article:nth-child(n), parent-child relationships
+Use text-based XPath as fallback: //a[contains(@href,'/job-listings')]
+Add jobAge=1 to URL to pre-filter at source
+
+
+
+Problem 3: Infinite Scroll
+
+Jobs load as user scrolls — no page numbers
+Solution: Same scroll strategy as LinkedIn. Scroll in 400px increments, wait for new cards, track job count, stop after 3 non-productive scrolls. Max 8 scroll attempts.
+
+Problem 4: Occasional Empty Results / Blocking
+
+Naukri sometimes returns zero results due to silent IP blocking
+Solution:
+
+After page load, check if job count > 0
+If zero: wait 10 seconds, refresh page once, check again
+If still zero: log "Naukri blocked or no results" and return empty list gracefully
+Never crash — always return a list (even if empty)
+
+
+
+Problem 5: Timestamp Format Variations
+
+Naukri shows: "Few hours ago", "1 Day Ago", "30+ days ago", or sometimes nothing
+Solution: Full normalization in time_parser.py:
+
+"few hours ago" or "few minutes ago" → 2 hours (conservative estimate)
+"today" → 1 hour
+"1 day ago" → 24 hours (borderline — include with flag)
+"30+ days ago" → 999 hours (always filter out)
+Missing timestamp → mark as "unknown", include with warning flag
+
+
+
+
+🧠 GLOBAL SCRAPING RULES (MANDATORY — ALL PLATFORMS)
+python# Apply these to EVERY platform without exception:
+
+SCRAPING_RULES = {
+    "url_filters": {
+        "indeed": "fromage=1",      # Last 24 hours
+        "naukri": "jobAge=1",       # Last 1 day
+        "linkedin": "f_TPR=r86400" # Last 86400 seconds = 24 hours
+    },
+    "never_trust_platform_filters": True,  # Always recheck timestamps manually
+    "max_jobs_per_platform": 50,
+    "retry_attempts": 3,
+    "retry_delay_seconds": [2, 4, 8],      # Exponential backoff
+    "min_delay_between_actions": 2,
+    "max_delay_between_actions": 6,
+    "human_scroll_increment_px": [300, 500],
+    "stop_if_captcha_detected": True,
+    "graceful_failure": True               # Always return [] not crash
+}
+
+🏗️ ARCHITECTURE & MODULES
+config.py
+
+All secrets via .env (GROQ_API_KEY, GOOGLE_SHEETS_ID, GOOGLE_CREDENTIALS_FILE)
+All tunable constants (delays, limits, model names)
+Never hardcode any secret anywhere
+
+scraper/linkedin.py
+
+Class: LinkedInScraper
+Methods: load_session(), save_session(), check_session_valid(), scrape(query, location, max_jobs), _scroll_jobs_page(), _extract_job_card(card), _detect_blocking()
+Returns: List[JobPost]
+
+scraper/indeed.py
+
+Class: IndeedScraper
+Methods: scrape(query, location, max_jobs), _paginate(), _extract_job_card(card), _detect_captcha(page)
+Returns: List[JobPost]
+
+scraper/naukri.py
+
+Class: NaukriScraper
+Methods: scrape(query, location, max_jobs), _scroll_to_load(), _extract_job_card(card), _check_blocked(page)
+Returns: List[JobPost]
+
+utils/cookie_manager.py
+
+save_cookies(platform, state) → saves to {platform}_session.json
+load_cookies(platform) → loads and validates session age
+is_session_valid(platform) → returns True if < 12 hours old
+prompt_manual_login(platform, page) → opens browser, waits for user, saves state
+
+utils/fingerprint_spoofer.py
+
+apply_stealth(page) → patches navigator.webdriver, plugins, languages
+random_user_agent() → returns realistic UA string
+spoof_canvas(page) → adds slight canvas noise to evade fingerprinting
+set_realistic_headers(context) → sets full browser-like header set
+
+utils/time_parser.py
+
+parse_posted_time(raw_text) → returns {raw, hours, absolute_utc, is_recent}
+is_within_hours(hours, limit=24) → boolean filter
+Handles ALL edge cases from all 3 platforms
+
+utils/groq_engine.py
+
+analyze_job(resume_json, job_post) → returns full AI analysis
+batch_analyze(resume_json, job_list) → processes list with rate limit handling
+Handles Groq rate limits with exponential backoff
+Returns: {score, missing_skills, suggestions, cover_letter}
+
+utils/sheet.py
+
+init_sheet() → authenticates with Google Sheets API
+write_jobs(job_results) → appends rows to spreadsheet
+check_duplicate_in_sheet(job_id) → prevents re-writing same job
+Column schema: [Platform, Title, Company, Location, Posted, Score, Missing Skills, Suggestions, Cover Letter, HR Contact, URL, Scraped At]
+
+utils/deduplicator.py
+
+deduplicate(job_list) → removes duplicates across platforms
+Uses: SHA256 hash of (title.lower() + company.lower())
+Returns unique list
+
+utils/retry_handler.py
+
+with_retry(func, attempts=3, backoff=[2,4,8]) → decorator + function wrapper
+Logs each retry attempt
+Returns result or None on total failure
+
+services/resume_parser.py
+
+parse_resume(file_path) → accepts PDF or DOCX
+Extracts: name, email, phone, skills, experience (list), education (list), total_years_experience
+Returns structured JSON dict
+
+services/job_matcher.py
+
+match_jobs_to_resume(resume_json, job_list) → orchestrates AI matching
+Calls groq_engine.batch_analyze()
+Attaches AI results to each job
+Returns enriched job list
+
+main.py
+
+CLI entry point: python main.py --resume resume.pdf --query "Python Developer" --location "Hyderabad"
+Orchestrates: parse resume → scrape all platforms → deduplicate → filter by time → AI match → write to sheets
+Progress bar using tqdm
+Full logging to job_agent.log
+
+
+📦 STANDARD JOB DATA MODEL
+Every scraper must return this exact format:
+python@dataclass
+class JobPost:
+    platform: str           # "linkedin" | "indeed" | "naukri"
+    title: str
+    company: str
+    location: str
+    url: str
+    posted_raw: str         # "2 hours ago"
+    posted_hours: float     # 2.0
+    posted_utc: str         # "2025-03-28T10:30:00Z"
+    description: str
+    salary: str             # "" if not available
+    hr_contact: str         # "" if not found
+    job_id: str             # hash of title+company
+    # Added after AI processing:
+    score: int              # 0-100
+    missing_skills: list
+    suggestions: list
+    cover_letter: str
+```
+
+---
+
+## ⚙️ FUNCTIONAL REQUIREMENTS (NON-NEGOTIABLE)
+
+1. **Resume Parsing**: PDF and DOCX both must work. Use `pdfplumber` for PDF, `python-docx` for DOCX. Send extracted text to Groq to convert into structured JSON.
+
+2. **Scraping**: Each platform in its own file. Must return `List[JobPost]`. Must handle pagination/scrolling. Must apply URL-level filters AND manual timestamp re-verification.
+
+3. **Filtering**: Drop all jobs > 24 hours. Flag jobs between 12–24 hours. Prefer jobs < 12 hours.
+
+4. **Deduplication**: Hash-based, cross-platform, runs before AI processing to save API calls.
+
+5. **AI Processing**: Groq LLaMA3-70b. Batch processing with 1-second delay between calls. Full JSON output for every job. Graceful fallback if Groq fails (save job without AI data).
+
+6. **Google Sheets**: Append-only. Never overwrite. Check for existing job_id before writing. Auto-create headers if sheet is empty.
+
+7. **Logging**: Every scrape attempt logged (success/fail/job count). Every AI call logged. Errors logged with full traceback. Log file: `job_agent.log`.
+
+---
+
+## 📋 REQUIREMENTS.TXT (Generate this exactly)
+```
+playwright==1.44.0
+playwright-stealth==1.0.6
+groq==0.9.0
+gspread==6.1.2
+google-auth==2.29.0
+pdfplumber==0.11.0
+python-docx==1.1.2
+python-dotenv==1.0.1
+tqdm==4.66.4
+fastapi==0.111.0
+uvicorn==0.30.1
+dataclasses-json==0.6.7
+
+📄 .ENV.EXAMPLE (Generate this)
+envGROQ_API_KEY=your_groq_api_key_here
+GOOGLE_SHEETS_CREDENTIALS_FILE=credentials.json
+GOOGLE_SHEETS_SPREADSHEET_ID=your_spreadsheet_id_here
+GOOGLE_SHEETS_WORKSHEET_NAME=Jobs
+
+📖 README MUST INCLUDE
+
+Prerequisites (Python 3.11+, Chrome browser installed)
+Installation steps (pip install -r requirements.txt, playwright install chrome)
+How to get Groq API key (free at console.groq.com)
+How to set up Google Sheets service account (step-by-step)
+How to do first-time LinkedIn login and save session
+How to run: python main.py --resume resume.pdf --query "Python Developer" --location "Hyderabad"
+How to schedule with cron: 0 */6 * * * cd /path/to/job-agent && python main.py ...
+Troubleshooting section for each platform
+
+
+🚫 STRICT RULES FOR CODE GENERATION
+
+DO NOT skip any module
+DO NOT write pseudo-code or placeholder comments like # TODO or # implement this
+DO NOT leave any function body empty
+ALL files must be complete, imports included, runnable as-is
+ALL error handling must be real try/except blocks, not just comments
+ALL selectors must have fallback chains
+ALL class methods must be fully implemented
+Code must be clean, PEP8 compliant, with docstrings on every class and method
+
+
+✅ GENERATION ORDER (Follow this sequence)
+Generate files in this exact order so dependencies are clear:
+
+config.py
+requirements.txt + .env.example
+utils/retry_handler.py
+utils/time_parser.py
+utils/cookie_manager.py
+utils/fingerprint_spoofer.py
+utils/deduplicator.py
+utils/groq_engine.py
+utils/sheet.py
+services/resume_parser.py
+services/job_matcher.py
+scraper/naukri.py
+scraper/indeed.py
+scraper/linkedin.py
+main.py
+README.md

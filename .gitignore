@@ -1,0 +1,25 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+logs/
+backend/logs/
+backend/cache/
+backend/sessions/
+backend/exports/
+
+# Node
+node_modules/
+frontend/.next/
+frontend/.env.local
+frontend/out/
+
+# Environment / Secrets
+.env
+.env.example
+backend/.env
+backend/.env.example
+
+# OS
+.DS_Store
+Thumbs.db
