@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Enable standalone output for deployment optimization
-    output: 'standalone',
+    // output: 'standalone',
     
     // Enable modern images support (e.g. SVG favicons)
     images: {
