@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "HuntAI — AI Job Hunter Agent",
+  title: "HuntAI Pro — AI Job Hunter Agent",
   description: "Your resume. Every job board. Zero effort. Scrape, score, and land your next role with HuntAI.",
 };
 

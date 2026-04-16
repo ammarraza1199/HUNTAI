@@ -113,7 +113,7 @@ const HeroSection: React.FC = () => {
                     transition={{ duration: 0.7, delay: 0.2 }}
                     className="text-lg md:text-xl text-muted-foreground mb-12 leading-relaxed max-w-2xl mx-auto"
                 >
-                    HuntAI scrapes LinkedIn, Naukri, and Indeed — then uses AI to score every job against your resume in real-time.
+                    HuntAI Pro scrapes LinkedIn, Naukri, and Indeed — then uses AI to score every job against your resume in real-time.
                 </motion.p>
 
                 {/* Main CTAs */}

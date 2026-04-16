@@ -34,7 +34,7 @@ const FooterSection: React.FC = () => {
                         Hunt smarter, land your next role with zero manual search effort.
                     </p>
                     <div className="flex items-center gap-4 text-muted-foreground">
-                        <Link href="https://github.com/your-username/HuntAI" className="hover:text-white transition-colors"><Github className="w-5 h-5" /></Link>
+                        <Link href="https://github.com/ammarraza1199/HUNTAI" className="hover:text-white transition-colors"><Github className="w-5 h-5" /></Link>
                         <Link href="https://twitter.com" className="hover:text-indigo-400 transition-colors"><Twitter className="w-5 h-5" /></Link>
                         <Link href="https://linkedin.com" className="hover:text-blue-400 transition-colors"><Linkedin className="w-5 h-5" /></Link>
                     </div>
@@ -54,7 +54,7 @@ const FooterSection: React.FC = () => {
                 <div className="flex flex-col gap-6">
                     <h5 className="font-bold text-white uppercase text-xs tracking-widest">Resources</h5>
                     <div className="flex flex-col gap-2 text-sm text-muted-foreground font-medium">
-                        <Link href="https://github.com/your-username/HuntAI/docs" className="hover:text-white">Documentation</Link>
+                        <Link href="https://github.com/ammarraza1199/HUNTAI/docs" className="hover:text-white">Documentation</Link>
                         <Link href="/privacy" className="hover:text-white">Privacy Policy</Link>
                         <span className="text-xs text-indigo-400 mt-2">Built with Groq & Llama 3</span>
                     </div>
@@ -64,7 +64,7 @@ const FooterSection: React.FC = () => {
             {/* Bottom Credit */}
             <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 border-t border-white/5 pt-12">
                 <p className="text-xs text-muted-foreground font-medium">
-                    © 2025 HuntAI Agent (MIT License). Open source and free for the community.
+                    © 2025 HuntAI Pro Agent (MIT License). Open source and free for the community.
                 </p>
                 <div className="flex items-center gap-6 text-xs text-muted-foreground font-semibold">
                     <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-green-500" /> Operational on Vercel</span>

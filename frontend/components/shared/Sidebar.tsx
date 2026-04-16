@@ -69,7 +69,7 @@ const Sidebar: React.FC = () => {
                     <Zap className="text-white w-6 h-6 fill-current" />
                 </div>
                 <span className="text-xl font-bold font-mono tracking-tighter">
-                    Hunt<span className="text-indigo-400">AI</span>
+                    HuntAI<span className="ml-1 px-1.5 py-0.5 bg-indigo-600/20 text-indigo-400 text-[10px] rounded uppercase tracking-widest border border-indigo-500/20">Pro</span>
                 </span>
             </Link>
 

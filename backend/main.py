@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     # ─── Shutdown Logic ───
     await MongoDB.close()
 
-app = FastAPI(title="HuntAI - AI Job Hunter Agent", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="HuntAI Pro - AI Job Hunter Agent", version="1.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -317,7 +317,7 @@ async def export_excel(run_id: str, user: dict = Depends(get_current_user)):
 
     # 2. Check for file, regenerate if missing
     # Normalizing path for cross-platform (Render is Linux, user might be Windows)
-    file_path = os.path.abspath(f"backend/exports/HuntAI_Results_{run_id}.xlsx")
+    file_path = os.path.abspath(f"backend/exports/HuntAI_Pro_Results_{run_id}.xlsx")
     
     if not os.path.exists(file_path):
         logger.info(f"Regenerating Excel report for run {run_id} (Disk cache missed).")
@@ -339,14 +339,14 @@ async def export_excel(run_id: str, user: dict = Depends(get_current_user)):
 
     return FileResponse(
         path=file_path, 
-        filename=f"HuntAI_Report_{run_id}.xlsx",
+        filename=f"HuntAI_Pro_Report_{run_id}.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     return FileResponse(
         file_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=f"HuntAI_Results_{run_id}.xlsx"
+        filename=f"HuntAI_Pro_Results_{run_id}.xlsx"
     )
 
 @app.get("/api/profile", response_model=UserProfile)
