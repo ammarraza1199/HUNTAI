@@ -10,10 +10,7 @@
 
 ## 🚀 Live Demo & Preview
 > [!IMPORTANT]
-> **View the Deployed App:** [Insert Your Render/Vercel Link Here]
-> 
-> **Watch the Agent in Action:**
-> ![HuntAI Demo Video Placeholder](https://via.placeholder.com/800x450.png?text=HuntAI+Execution+Demo+Video)
+> **View the Deployed App:** [[Click here](https://huntaipro.netlify.app)]
 
 ---
 
