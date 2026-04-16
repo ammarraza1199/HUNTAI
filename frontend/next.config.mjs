@@ -17,7 +17,6 @@ const nextConfig = {
     
     // Allow experimental features if needed
     experimental: {
-        serverComponentsExternalPackages: ['@supabase/supabase-js'],
     },
 };
 
