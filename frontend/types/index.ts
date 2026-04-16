@@ -1,6 +1,6 @@
-# frontend/types/index.ts
-# HuntAI - AI Job Hunter Agent
-# Unified TypeScript interfaces for frontend/backend parity
+// # frontend/types/index.ts
+// # HuntAI - AI Job Hunter Agent
+// # Unified TypeScript interfaces for frontend/backend parity
 
 export type Platform = 'linkedin' | 'naukri' | 'indeed';
 export type Engine = 'playwright' | 'sb' | 'nd';
@@ -36,6 +36,8 @@ export interface Job {
   missing_skills: string[];
   suggestion: string;
   cover_letter: string;
+  posted_hours: number;
+  work_style?: string; // Remote, Hybrid, On-site
   posted_at?: string;
   scraped_at: string;
   saved?: boolean;
@@ -47,6 +49,7 @@ export interface JobRun {
   query: string;
   location: string;
   status: PipelineStatus;
+  platforms: Platform[];
   total_jobs_found: number;
   avg_match_score?: number;
   started_at: string;
@@ -67,8 +70,33 @@ export interface LogEntry {
   fatal?: boolean;
 }
 
+export interface ResumeParseResponse {
+  name: string;
+  email?: string;
+  phone?: string;
+  skills: string[];
+  experience: any[];
+  education: any[];
+  experience_years: number;
+  summary: string;
+  raw_text_preview?: string;
+}
+
+export interface PipelineStartRequest {
+  query: string;
+  location: string;
+  experience_level: 'entry' | 'mid' | 'senior' | 'lead';
+  platforms: Platform[];
+  engine?: Engine;
+  delay_seconds?: number;
+  max_per_platform?: number;
+  resume_data: any;
+}
+
 export interface Usage {
   runs_today: number;
   runs_limit: number;
+  total_runs: number;
+  total_jobs: number;
   resets_at: string;
 }

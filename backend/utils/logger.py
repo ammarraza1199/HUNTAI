@@ -44,12 +44,6 @@ class HuntAILogger:
         console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
         self.logger.addHandler(console_handler)
 
-        self.supabase_client = None
-
-    def set_supabase_client(self, client):
-        """Inject supabase client for DB logging."""
-        self.supabase_client = client
-
     def _build_entry(self, level: str, message: str, phase: str = None, 
                      platform: str = None, user_id: str = None, run_id: str = None,
                      error_type: str = None, stack_trace: str = None, 
@@ -74,32 +68,6 @@ class HuntAILogger:
         
         # Write to local file (as JSON string)
         self.logger.log(level_num, json.dumps(entry))
-        
-        # Async task for Supabase and SSE streamer (placeholder for now)
-        if level_num >= logging.WARNING and self.supabase_client:
-            asyncio.create_task(self._log_to_supabase(entry))
-
-    async def _log_to_supabase(self, entry: Dict[str, Any]):
-        """Persist error-level logs to Supabase."""
-        try:
-            if self.supabase_client:
-                # Map entry to DB schema
-                db_entry = {
-                    "user_id": entry["user_id"],
-                    "run_id": entry["run_id"],
-                    "level": entry["level"],
-                    "phase": entry["phase"],
-                    "platform": entry["platform"],
-                    "message": entry["message"],
-                    "error_type": entry["error_type"],
-                    "stack_trace": entry["stack_trace"],
-                    "job_url": entry["job_url"],
-                    "metadata": entry["metadata"]
-                }
-                self.supabase_client.table("error_logs").insert(db_entry).execute()
-        except Exception:
-            # Silently fail for log persistence issues
-            pass
 
     def info(self, message: str, **kwargs):
         self._log(logging.INFO, "INFO", message, **kwargs)

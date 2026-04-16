@@ -25,7 +25,7 @@ const Step2_Resume: React.FC<Step2Props> = ({ data, setData }) => {
         const file = acceptedFiles[0];
         if (!file) return;
 
-        setData(prev => ({ ...prev, resume: file }));
+        setData((prev: any) => ({ ...prev, resume: file }));
         await processResume(file);
     }, [data.groq_key]);
 
@@ -40,7 +40,7 @@ const Step2_Resume: React.FC<Step2Props> = ({ data, setData }) => {
             // Actual API call to backend /api/parse-resume
             const res = await api.uploadResume(file, data.groq_key);
             setParsed(res);
-            setData(prev => ({ ...prev, resume_parsed: res }));
+            setData((prev: any) => ({ ...prev, resume_parsed: res }));
             toast.success("Resume parsed successfully!");
         } catch (err: any) {
             toast.error(err.message || "Failed to parse resume.");
@@ -108,7 +108,7 @@ const Step2_Resume: React.FC<Step2Props> = ({ data, setData }) => {
                             </div>
                         </div>
                         <button 
-                            onClick={() => { setParsed(null); setData(prev => ({ ...prev, resume_parsed: null })); }} 
+                            onClick={() => { setParsed(null); setData((prev: any) => ({ ...prev, resume_parsed: null })); }} 
                             className="p-2 hover:bg-white/10 rounded-lg text-muted-foreground transition-colors"
                         >
                             <X className="w-4 h-4" />

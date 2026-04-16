@@ -10,11 +10,12 @@ import React, { useState, useEffect } from "react";
 import { 
     Settings, Key, Monitor, Coffee, Zap, User, 
     ShieldCheck, Trash2, LogOut, CheckCircle2, 
-    AlertCircle, Save, HelpCircle, ChevronRight,
+    AlertCircle, Save, HelpCircle, ChevronRight, ChevronDown,
     Loader2, Trash, Info
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "../../lib/supabase";
+import { api } from "../../lib/api";
+import { authAPI } from "../../lib/auth";
 import { Profile, Usage } from "../../types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -27,6 +28,7 @@ export default function SettingsPage() {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [usage, setUsage] = useState<Usage | null>(null);
     const [newGroqKey, setNewGroqKey] = useState("");
+    const [isEngineDropdownOpen, setIsEngineDropdownOpen] = useState(false);
 
     useEffect(() => {
         fetchSettings();
@@ -35,14 +37,17 @@ export default function SettingsPage() {
     const fetchSettings = async () => {
         try {
             setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = authAPI.getUser();
             if (!user) return router.push("/login");
 
-            const { data: profile_data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-            const { data: usage_data } = await supabase.from('api_usage').select('*').eq('user_id', user.id).eq('date', new Date().toISOString().split('T')[0]).single();
+            // Fetch usage from real backend
+            const usage_data = await api.get<Usage>('/api/usage');
+            
+            // Fetch real profile
+            const profile_data = await api.get<Profile>('/api/profile');
 
             setProfile(profile_data);
-            setUsage(usage_data || { runs_today: 0, runs_limit: 3, resets_at: new Date().toISOString() });
+            setUsage(usage_data);
         } catch (err: any) {
             toast.error("Failed to load settings.");
         } finally {
@@ -54,17 +59,15 @@ export default function SettingsPage() {
         if (!profile) return;
         setSaving(true);
         try {
-            const { error } = await supabase.from('profiles').update({
+            await api.post('/api/profile', {
+                full_name: profile.full_name,
                 default_engine: profile.default_engine,
                 default_delay: profile.default_delay,
-                default_max_per_platform: profile.default_max_per_platform,
-                full_name: profile.full_name
-            }).eq('id', profile.id);
-            
-            if (error) throw error;
-            toast.success("Settings updated successfully.");
+                default_max_per_platform: profile.default_max_per_platform
+            });
+            toast.success("Preferences saved successfully.");
         } catch (err: any) {
-            toast.error("Failed to update settings.");
+            toast.error("Failed to update preferences.");
         } finally {
             setSaving(false);
         }
@@ -80,9 +83,8 @@ export default function SettingsPage() {
         setNewGroqKey("");
     };
 
-    const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        router.push("/login");
+    const handleSignOut = () => {
+        authAPI.logout();
     };
 
     if (loading) return <div className="p-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin opacity-20" /></div>;
@@ -98,10 +100,10 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+            <div className="flex flex-col gap-10">
                 
-                {/* Tabs Sidebar */}
-                <div className="md:col-span-3 flex flex-col gap-2">
+                {/* Horizontal Navigation Tabs (Aligned UI) */}
+                <div className="flex items-center gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl w-fit">
                     {[
                         { id: "api", icon: <Key className="w-4 h-4" />, name: "API Key" },
                         { id: "prefs", icon: <Monitor className="w-4 h-4" />, name: "Preferences" },
@@ -112,27 +114,18 @@ export default function SettingsPage() {
                             key={tab.id}
                             //@ts-ignore
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-bold ${
-                                activeTab === tab.id ? "bg-indigo-600 text-white shadow-xl shadow-indigo-500/20" : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all text-xs font-bold uppercase tracking-wider ${
+                                activeTab === tab.id ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "text-muted-foreground hover:bg-white/5 hover:text-white"
                             }`}
                         >
                             {tab.icon}
                             {tab.name}
                         </button>
                     ))}
-
-                    <div className="mt-8 pt-8 border-t border-white/5 flex flex-col gap-4">
-                        <button 
-                            onClick={handleSignOut}
-                            className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all text-sm font-bold"
-                        >
-                            <LogOut className="w-4 h-4" /> Sign Out
-                        </button>
-                    </div>
                 </div>
 
-                {/* Content Area */}
-                <div className="md:col-span-9 flex flex-col gap-8 min-h-[500px]">
+                {/* Content Area (Now Full Width and Aligned) */}
+                <div className="flex flex-col gap-8 min-h-[500px]">
                     <AnimatePresence mode="wait">
                         {/* ─── API KEY SECTION ────────────────────────────────────────────────── */}
                         {activeTab === "api" && (
@@ -186,15 +179,53 @@ export default function SettingsPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4">
                                         <label className="text-sm font-bold text-muted-foreground flex items-center gap-2"><Monitor className="w-4 h-4" /> Default Engine</label>
-                                        <select 
-                                            value={profile.default_engine}
-                                            onChange={(e) => setProfile({...profile, default_engine: e.target.value as any})}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none font-bold"
-                                        >
-                                            <option value="playwright">Standard (Playwright)</option>
-                                            <option value="sb">Stealth (SeleniumBase)</option>
-                                            <option value="nd">Ghost (Nodriver)</option>
-                                        </select>
+                                        
+                                        <div className="relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsEngineDropdownOpen(!isEngineDropdownOpen)}
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 flex items-center justify-between font-bold"
+                                            >
+                                                <span>
+                                                    {profile.default_engine === "playwright" && "Standard (Playwright)"}
+                                                    {profile.default_engine === "sb" && "Stealth (SeleniumBase)"}
+                                                    {profile.default_engine === "nd" && "Ghost (Nodriver)"}
+                                                </span>
+                                                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${isEngineDropdownOpen ? "rotate-180" : ""}`} />
+                                            </button>
+
+                                            <AnimatePresence>
+                                                {isEngineDropdownOpen && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, y: -10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: -10 }}
+                                                        className="absolute z-50 w-full mt-2 bg-[#1A1A1A] border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black"
+                                                    >
+                                                        {[
+                                                            { id: "playwright", name: "Standard (Playwright)" },
+                                                            { id: "sb", name: "Stealth (SeleniumBase)" },
+                                                            { id: "nd", name: "Ghost (Nodriver)" }
+                                                        ].map((engine) => (
+                                                            <div
+                                                                key={engine.id}
+                                                                onClick={() => {
+                                                                    setProfile({...profile, default_engine: engine.id as any});
+                                                                    setIsEngineDropdownOpen(false);
+                                                                }}
+                                                                className={`px-4 py-3 text-sm cursor-pointer transition-all ${
+                                                                    profile.default_engine === engine.id 
+                                                                        ? "bg-indigo-600 text-white" 
+                                                                        : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                                                                }`}
+                                                            >
+                                                                {engine.name}
+                                                            </div>
+                                                        ))}
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
                                     </div>
                                     <div className="space-y-4">
                                         <label className="text-sm font-bold text-muted-foreground flex items-center gap-2"><Coffee className="w-4 h-4" /> Human Delay (s)</label>
@@ -233,19 +264,21 @@ export default function SettingsPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                                     <div className="p-6 glass rounded-2xl border border-white/5 flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Runs Available Today</span>
-                                        <span className="text-4xl font-mono font-black text-indigo-400">{3 - usage.runs_today}/{3}</span>
+                                        <span className="text-4xl font-mono font-black text-indigo-400">{usage.runs_limit - usage.runs_today}/{usage.runs_limit}</span>
                                         <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mt-4">
-                                            <div className="h-full bg-indigo-500" style={{ width: `${(usage.runs_today / 3) * 100}%` }} />
+                                            <div className="h-full bg-indigo-500" style={{ width: `${(usage.runs_today / usage.runs_limit) * 100}%` }} />
                                         </div>
                                     </div>
                                     <div className="p-6 glass rounded-2xl border border-white/5 flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Jobs Scraped All-time</span>
-                                        <span className="text-4xl font-mono font-black text-green-400">142</span>
-                                        <p className="text-[10px] text-muted-foreground font-medium mt-auto">Across 12 successful hunts.</p>
+                                        <span className="text-4xl font-mono font-black text-green-400">{usage.total_jobs || 0}</span>
+                                        <p className="text-[10px] text-muted-foreground font-medium mt-auto">Across {usage.total_runs || 0} successful hunts.</p>
                                     </div>
                                     <div className="p-6 glass rounded-2xl border border-white/5 flex flex-col gap-2">
                                         <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Reset Window</span>
-                                        <span className="text-4xl font-mono font-black text-amber-400">8h</span>
+                                        <span className="text-4xl font-mono font-black text-amber-400">
+                                            {Math.max(0, Math.ceil((new Date(usage.resets_at).getTime() - new Date().getTime()) / (1000 * 60 * 60)))}h
+                                        </span>
                                         <p className="text-[10px] text-muted-foreground font-medium mt-auto">Until daily limit resets.</p>
                                     </div>
                                 </div>

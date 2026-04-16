@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.7",
+    "@react-oauth/google": "^0.13.5",
     "clsx": "^2.1.0",
     "framer-motion": "^11.0.3",
     "job_scrapping_opensource_git": "file:..",

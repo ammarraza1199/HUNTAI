@@ -11,6 +11,12 @@ from backend.utils.retry_handler import retry_call
 
 logger = logging.getLogger(__name__)
 
+class GroqRateLimitExceeded(Exception):
+    """Custom exception for Groq rate limit with a wait time message."""
+    def __init__(self, message, retry_after=None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
 # Initialize clients lazily
 _clients = {}
 
@@ -43,15 +49,23 @@ def score_jobs_batch(resume_json: Dict[str, Any], jobs: List[Dict[str, Any]]) ->
     client = get_client("scoring")
     
     system_prompt = (
-        "You are an expert technical recruiter. Analyze the user's resume against a list of job descriptions. "
-        "For EACH job, calculate a match score (0-100) based on skills and experience, and identify missing skills. "
-        "Return the output STRICTLY as a JSON object with a key 'results' which is a list matching the input order.\n"
+        "You are an expert Strategic Career Coach and Technical Recruiter. Analyze the user's resume against a list of job descriptions. "
+        "CRITICAL: Be strict about the 'score', but be a COACH in the 'suggestions'. "
+        "STRATEGIC ADVICE SCENARIOS:\n"
+        "1. EXPERIENCE GAP: If skills are great but years are low, suggest direct outreach to explain projects.\n"
+        "2. DEGREE GAP: If the job requires a higher degree (e.g. Masters) but the user has relevant projects/work, suggest how to pitch that experience as a substitute.\n"
+        "3. SKILL MISMATCH: If a specific tool is missing but the user knows a similar tool, suggest mentioning that transferable skill.\n"
+        "4. CLIENT-SPECIFIC REQUIREMENTS: If there are rigid constraints but the user is a strong fit, provide a 'pivot' strategy for their application.\n"
+        "Return the output STRICTLY as a JSON object with a key 'results' which is a list.\n"
         "Each result should have:\n"
-        "- \"score\": Integer (0-100).\n"
+        "- \"match_score\": Integer (0-100).\n"
         "- \"missing_skills\": List of strings showing technical skills required but absent.\n"
-        "- \"suggestions\": List of strings (max 2) for resume adjustment."
+        "- \"suggestion\": A single concise string with strategic adjustment, outreach advice, or 'pivoting' advice."
     )
     
+    logger.info("🧠 AI Analysis: Matching against resume with %d skills and %d experience entries.", 
+                len(resume_json.get("skills", [])), len(resume_json.get("experience", [])))
+                
     # We send minimal job data to save tokens
     user_content = json.dumps({
         "resume_skills": resume_json.get("skills", []),
@@ -61,7 +75,7 @@ def score_jobs_batch(resume_json: Dict[str, Any], jobs: List[Dict[str, Any]]) ->
                 "id": i, 
                 "title": j.get("title"), 
                 "company": j.get("company"), 
-                "description": (j.get("description", "")[:1500] + "...") if len(j.get("description", "")) > 1500 else j.get("description")
+                "description": (j.get("description", "")[:1000] + "...") if len(j.get("description", "")) > 1000 else j.get("description")
             }
             for i, j in enumerate(jobs)
         ]
@@ -69,7 +83,7 @@ def score_jobs_batch(resume_json: Dict[str, Any], jobs: List[Dict[str, Any]]) ->
 
     def _call_groq():
         response = client.chat.completions.create(
-            model=config.GROQ_MODEL_SCORING,
+            model="llama-3.1-8b-instant", # Explicitly use fast model to avoid rate limits
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -89,17 +103,44 @@ def score_jobs_batch(resume_json: Dict[str, Any], jobs: List[Dict[str, Any]]) ->
             exceptions=(Exception,)
         )
         # Ensure we return a list of the same length as jobs
-        if not results or not isinstance(results, list):
-             return [{"score": 0, "missing_skills": [], "suggestions": ["API formatting error"]} for _ in jobs]
+        if results is None: 
+            # If retry_call returns None, it means it failed after all attempts
+            raise Exception("Groq API unreachable or total failure after retries.")
+            
+        if not isinstance(results, list):
+             results = []
         
-        # Pad or truncate to match input size just in case the LLM hallucinated the list size
-        if len(results) < len(jobs):
-            results.extend([{"score": 0, "missing_skills": [], "suggestions": []} for _ in range(len(jobs) - len(results))])
-        return results[:len(jobs)]
+        final_jobs = []
+        for i, job in enumerate(jobs):
+            res = results[i] if i < len(results) else {}
+            
+            # Use standardized keys
+            job["match_score"] = res.get("match_score", res.get("score", 0))
+            job["missing_skills"] = res.get("missing_skills", [])
+            job["suggestion"] = res.get("suggestion", "No specific adjustments identified.")
+            
+            logger.info("🎯 Job Analysis [%d]: %s (%s) - Score: %d%%", 
+                        i+1, job['title'], job['company'], job['match_score'])
+            final_jobs.append(job)
+            
+        return final_jobs
         
     except Exception as e:
+        error_str = str(e)
+        if "rate_limit_exceeded" in error_str.lower() or "429" in error_str:
+            wait_time = "a few minutes"
+            import re
+            match = re.search(r"try again in ([\d\.msh]+)", error_str.lower())
+            if match:
+                wait_time = match.group(1)
+            raise GroqRateLimitExceeded(f"Groq Rate Limit: {error_str}", retry_after=wait_time)
+            
         logger.error("Batch scoring failed: %s", e)
-        return [{"score": 0, "missing_skills": [], "suggestions": ["Error in batch processing"]} for _ in jobs]
+        for job in jobs:
+            job["match_score"] = 0
+            job["missing_skills"] = []
+            job["suggestion"] = "AI processing error."
+        return jobs
 
 def generate_premium_cover_letter(resume_json: Dict[str, Any], job_post: Dict[str, Any]) -> str:
     """
@@ -135,6 +176,15 @@ def generate_premium_cover_letter(resume_json: Dict[str, Any], job_post: Dict[st
     try:
         return retry_call(_call_groq, attempts=2, backoff=[5, 10])
     except Exception as e:
+        error_str = str(e)
+        if "rate_limit_exceeded" in error_str.lower() or "429" in error_str:
+            wait_time = "a few minutes"
+            import re
+            match = re.search(r"try again in ([\d\.msh]+)", error_str.lower())
+            if match:
+                wait_time = match.group(1)
+            raise GroqRateLimitExceeded(f"Groq Rate Limit (Cover Letter): {error_str}", retry_after=wait_time)
+            
         logger.error("Premium cover letter generation failed for %s: %s", job_post.get("title"), e)
         return "Failed to generate cover letter."
 
@@ -152,7 +202,7 @@ def batch_analyze(resume_json: Dict[str, Any], job_list: List[Dict[str, Any]]) -
     
     # Initialize fields
     for job in job_list:
-        job["score"] = 0
+        job["match_score"] = 0
         job["missing_skills"] = []
         job["suggestions"] = []
         job["cover_letter"] = ""
@@ -165,17 +215,15 @@ def batch_analyze(resume_json: Dict[str, Any], job_list: List[Dict[str, Any]]) -
         
         batch_results = score_jobs_batch(resume_json, chunk)
         
-        # Apply results back to job objects
-        for j, res in enumerate(batch_results):
-            chunk[j]["score"] = res.get("score", 0)
-            chunk[j]["missing_skills"] = res.get("missing_skills", [])
-            chunk[j]["suggestions"] = res.get("suggestions", [])
+        # batch_results (from score_jobs_batch) already contains updated job objects
+        # No extra assignment needed here as objects in chunk are updated in-place.
+        pass
         
         # Small delay to respect RPM limits
         time.sleep(1.0)
     
     # ─── Step 2: High-Quality Cover Letters (Premium Tier) ────────────────────
-    potential_matches = [j for j in job_list if j.get("score", 0) >= config.COVER_LETTER_THRESHOLD]
+    potential_matches = [j for j in job_list if j.get("match_score", 0) >= config.COVER_LETTER_THRESHOLD]
     
     if not potential_matches:
         logger.warning("⚠️ No jobs reached the score threshold (%d) for cover letters.", config.COVER_LETTER_THRESHOLD)

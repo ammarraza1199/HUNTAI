@@ -13,7 +13,7 @@ import {
     AlertCircle, Loader2, Calendar, LayoutGrid, List as ListIcon 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "../../lib/supabase";
+import { api } from "../../lib/api";
 import { JobRun, Job } from "../../types";
 import { toast } from "sonner";
 
@@ -33,12 +33,7 @@ export default function HistoryPage() {
     const fetchHistory = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('job_runs')
-                .select('*')
-                .order('started_at', { ascending: false });
-            
-            if (error) throw error;
+            const data = await api.get<JobRun[]>('/api/runs');
             setRuns(data || []);
         } catch (err: any) {
             toast.error("Failed to load history.");
@@ -56,12 +51,7 @@ export default function HistoryPage() {
         setExpandedRunId(runId);
         setJobsLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('jobs')
-                .select('*')
-                .eq('run_id', runId);
-            
-            if (error) throw error;
+            const data = await api.get<Job[]>(`/api/runs/${runId}/jobs`);
             setRunJobs(data || []);
         } catch (err: any) {
             toast.error("Failed to load jobs for this run.");
@@ -74,12 +64,36 @@ export default function HistoryPage() {
         if (!confirm("Are you sure? This will delete all jobs and logs for this run.")) return;
         
         try {
-            const { error } = await supabase.from('job_runs').delete().eq('id', runId);
-            if (error) throw error;
+            await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/runs/${runId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('huntai_access_token')}`
+                }
+            });
             setRuns(runs.filter(r => r.id !== runId));
             toast.success("Run deleted.");
         } catch (err: any) {
             toast.error("Delete failed.");
+        }
+    };
+
+    const downloadExcel = async (runId: string) => {
+        toast.info("Preparing your Excel report...");
+        try {
+            const token = localStorage.getItem('huntai_access_token');
+            const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/runs/${runId}/export/excel?token=${token}`;
+            
+            // Professional download trigger
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `HuntAI_Report_${runId}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            toast.success("Download started!");
+        } catch (err) {
+            toast.error("Failed to download report.");
         }
     };
 
@@ -162,7 +176,7 @@ export default function HistoryPage() {
                                     {/* Actions */}
                                     <div className="flex items-center gap-2">
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); toast.success("Downloading report..."); }} 
+                                            onClick={(e) => { e.stopPropagation(); downloadExcel(run.id); }} 
                                             className="p-3 bg-green-500/10 text-green-400 hover:bg-green-500/20 rounded-xl transition-all"
                                             title="Download Excel"
                                         >

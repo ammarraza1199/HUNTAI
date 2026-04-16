@@ -6,7 +6,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Zap, Play, Square, Coffee, Settings, ChevronRight, BarChart3, Clock, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,20 +26,21 @@ export default function DashboardPage() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [progress, setProgress] = useState({ phase: 0, percent: 0 });
     const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-    
+
     // New Launch State
     const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
     const [huntPrefs, setHuntPrefs] = useState({
         query: "AI Engineer",
-        location: "Remote",
         experience_level: "mid",
-        platforms: ["linkedin", "naukri", "indeed"]
+        platforms: ["linkedin", "naukri", "indeed"],
+        max_per_platform: 20,
+        resume_data: null as any
     });
 
     // Live Streaming Core Logic
     const startPipeline = async (config?: any) => {
         const finalConfig = config || huntPrefs;
-        const groqKey = config?.groq_key || localStorage.getItem('huntai_groq_key');
+        const groqKey = config?.groq_key || localStorage.getItem('huntai_groq_key') || "";
         
         if (!groqKey) {
             toast.error("Groq API Key missing.");
@@ -50,41 +51,102 @@ export default function DashboardPage() {
         // Save key for future runs automatically
         if (config?.groq_key) localStorage.setItem('huntai_groq_key', config.groq_key);
 
-        setHuntPrefs(finalConfig);
-        setIsLaunchModalOpen(false);
         setStatus("running");
         setJobs([]);
         setLogs([]);
-        setProgress({ phase: 1, percent: 0 });
+        setProgress({ phase: 1, percent: 10 });
 
         try {
-            // 1. Initialize Run via Backend
+            let resumeData = finalConfig.resume_data;
+
+            // 1. Auto-Parse Resume if file is provided in config
+            if (config?.resume) {
+                setLogs(prev => [...prev, { 
+                    type: 'log',
+                    level: 'INFO', 
+                    message: "📑 New resume detected. Parsing career history...", 
+                    phase: 'parsing',
+                    timestamp: new Date().toISOString()
+                }]);
+                try {
+                    resumeData = await api.uploadResume(config.resume, groqKey);
+                    setLogs(prev => [...prev, { 
+                        type: 'log',
+                        level: 'SUCCESS', 
+                        message: `✅ Profile identified: ${resumeData.name}`, 
+                        phase: 'parsing',
+                        timestamp: new Date().toISOString()
+                    }]);
+                } catch (err: any) {
+                    toast.error("Resume parsing failed. Hunt aborted.");
+                    setLogs(prev => [...prev, { 
+                        type: 'log',
+                        level: 'ERROR', 
+                        message: `❌ Critical Error: ${err.message}`, 
+                        phase: 'parsing',
+                        timestamp: new Date().toISOString()
+                    }]);
+                    setStatus("failed");
+                    return; // DO NOT JUMP TO NEXT STEP
+                }
+            }
+
+            if (!resumeData) {
+                setLogs(prev => [...prev, { 
+                    type: 'log',
+                    level: 'WARNING', 
+                    message: "⚠️ No resume data provided. Matching will be less precise.", 
+                    phase: 'parsing',
+                    timestamp: new Date().toISOString()
+                }]);
+                resumeData = { skills: [], experience: [] };
+            }
+
+            setHuntPrefs({ ...finalConfig, resume_data: resumeData });
+            setIsLaunchModalOpen(false);
+
+            // 2. Initialize Run via Backend
             const startReq = {
                 query: finalConfig.query,
-                location: finalConfig.location,
                 experience_level: finalConfig.experience_level,
                 platforms: finalConfig.platforms,
+                max_per_platform: finalConfig.max_per_platform,
                 engine: "playwright",
-                resume_data: {} // Mocked or from previous step
+                resume_data: resumeData
             };
             const { run_id } = await api.post<any>("/api/start-pipeline", startReq, true);
             setCurrentRunId(run_id);
 
             // 2. Connect to SSE Stream
-            await api.streamPipeline(run_id, groqKey, (event: LogEntry) => {
+            await api.streamPipeline(run_id, groqKey, finalConfig, (event: any) => {
+                // The new pipeline.py emits data nested inside an 'event.data' object
+                const payload = event.data;
+
                 if (event.type === 'log') {
-                    setLogs(prev => [...prev, event]);
+                    setLogs(prev => [...prev, { ...payload, timestamp: event.timestamp }]);
                 } else if (event.type === 'job') {
-                    setJobs(prev => [event.job!, ...prev]);
+                    if (payload && payload.job) {
+                        setJobs(prev => [payload.job, ...prev]);
+                    }
                 } else if (event.type === 'progress') {
-                    setProgress({ phase: event.phase as number, percent: event.percent || 0 });
+                    if (payload) {
+                        setProgress({
+                            phase: (payload.phase as number),
+                            percent: (payload.percent as number) || 0
+                        });
+                    }
                 } else if (event.type === 'complete') {
                     setStatus("complete");
-                    toast.success("Pipeline completed successfully!");
+                    setProgress({ phase: 4, percent: 100 });
+                    toast.success("All phases finalized. Hunt successful!");
+                    // The backend closes the stream, which is fine.
                 } else if (event.type === 'error') {
-                    setStatus("failed");
-                    toast.error(event.message || "Pipeline error occurred.");
-                    if (event.fatal) setStatus("failed");
+                    // Only show error if we aren't already complete
+                    if (status !== 'complete') {
+                        setStatus("failed");
+                        const errMsg = payload?.message || "Pipeline error occurred.";
+                        toast.error(errMsg);
+                    }
                 }
             });
 
@@ -99,12 +161,23 @@ export default function DashboardPage() {
         toast.warning("Pipeline execution halted by user.");
     };
 
+    // Phase 12: Advanced Result Ranking (Sorting by Match Score)
+    // We sort by score DESC, and then by TITLE ASC to maintain stable order for equal scores
+    const sortedJobs = useMemo(() => {
+        return [...jobs].sort((a, b) => {
+            const scoreA = a.match_score || 0;
+            const scoreB = b.match_score || 0;
+            if (scoreB !== scoreA) return scoreB - scoreA;
+            return a.title.localeCompare(b.title);
+        });
+    }, [jobs]);
+
     return (
         <div className="flex flex-col gap-10">
-            
-            <LaunchModal 
-                isOpen={isLaunchModalOpen} 
-                onClose={() => setIsLaunchModalOpen(false)} 
+
+            <LaunchModal
+                isOpen={isLaunchModalOpen}
+                onClose={() => setIsLaunchModalOpen(false)}
                 onLaunch={startPipeline}
                 initialData={huntPrefs}
             />
@@ -112,7 +185,7 @@ export default function DashboardPage() {
             {/* Phase 7 Zone A: Pipeline Control Bar */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-6 border-b border-white/5">
                 <PipelineBar currentPhase={progress.phase} percent={progress.percent} />
-                
+
                 <div className="flex items-center gap-4">
                     {/* Launch Section */}
                     {status === "running" ? (
@@ -134,22 +207,22 @@ export default function DashboardPage() {
                     )}
 
                     {/* Quick Config Chip */}
-                    <button 
+                    <button
                         onClick={() => setIsLaunchModalOpen(true)}
                         className="hidden sm:flex px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-xs font-bold text-muted-foreground transition-all items-center gap-2"
                     >
                         <Settings className="w-4 h-4" />
-                        {huntPrefs.query} · {huntPrefs.location}
+                        {huntPrefs.query} · {huntPrefs.experience_level}
                     </button>
                 </div>
             </div>
 
             {/* Main Dashboard Layout Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                
+
                 {/* Left Column (Main Results Area) */}
                 <div className="lg:col-span-8 flex flex-col gap-10">
-                    
+
                     {/* Phase 7 Zone C: Stats Bar (Only shown if results exist) */}
                     <AnimatePresence>
                         {jobs.length > 0 && (
@@ -158,7 +231,10 @@ export default function DashboardPage() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: 10 }}
                             >
-                                <StatsBar total={jobs.length} avgScore={jobs.length > 0 ? (jobs.reduce((a, b) => a + b.match_score, 0) / jobs.length) : 0} />
+                                <StatsBar
+                                    total={jobs.length}
+                                    avgScore={jobs.length > 0 ? (jobs.reduce((acc, job) => acc + (job?.match_score || 0), 0) / jobs.length) : 0}
+                                />
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -167,7 +243,7 @@ export default function DashboardPage() {
                     {jobs.length === 0 && status === "idle" ? (
                         <EmptyState />
                     ) : (
-                        <JobGrid jobs={jobs} status={status} />
+                        <JobGrid jobs={sortedJobs} status={status} />
                     )}
                 </div>
 
@@ -175,7 +251,7 @@ export default function DashboardPage() {
                 <div className="lg:col-span-4 flex flex-col gap-6">
                     {/* Phase 7 Zone B: Live Log Terminal */}
                     <LogTerminal logs={logs} status={status} />
-                    
+
                     {/* Small context info */}
                     <div className="p-6 glass rounded-3xl border border-white/5 opacity-50 space-y-4">
                         <div className="flex items-center gap-3">

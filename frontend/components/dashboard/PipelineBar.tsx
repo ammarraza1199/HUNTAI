@@ -41,8 +41,9 @@ const PipelineBar: React.FC<PipelineBarProps> = ({ currentPhase, percent }) => {
 
             <div className="relative z-10 w-full flex items-center justify-between">
                 {phases.map((p, idx) => {
-                    const isActive = p.id === currentPhase;
-                    const isCompleted = p.id < currentPhase;
+                    const isFullyDone = p.id === 4 && percent === 100;
+                    const isCompleted = p.id < currentPhase || isFullyDone;
+                    const isActive = p.id === currentPhase && !isFullyDone;
                     
                     return (
                         <div key={p.id} className="flex items-center group relative lg:px-4">

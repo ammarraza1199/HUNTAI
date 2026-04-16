@@ -8,9 +8,12 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -44,9 +47,11 @@ export default function RootLayout({
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-500/20 blur-[120px] rounded-full" />
         </div>
 
-        <main className="relative z-10 min-h-screen flex flex-col">
-          {children}
-        </main>
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+            <main className="relative z-10 min-h-screen flex flex-col">
+            {children}
+            </main>
+        </GoogleOAuthProvider>
         
         {/* Global Toast Provider */}
         <Toaster position="top-right" richColors theme="dark" />

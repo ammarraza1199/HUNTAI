@@ -1,0 +1,28 @@
+# HuntAI - AI Job Hunter Agent
+# Render Displacement Blueprint (Root Level)
+
+services:
+  - type: web
+    name: huntai-backend
+    runtime: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: free 
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false 
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ALLOW_ORIGINS
+        value: "*" # Update to your Vercel URL in production

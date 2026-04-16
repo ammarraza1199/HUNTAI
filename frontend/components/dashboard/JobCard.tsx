@@ -52,12 +52,17 @@ const JobCard: React.FC<JobCardProps> = ({ job, index }) => {
             <div className="flex items-start justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4 min-w-0">
                     <img 
-                        src={`https://www.google.com/s2/favicons?domain=${new URL(job.job_url).hostname}&sz=64`}
-                        className="w-12 h-12 rounded-xl bg-white/5 border border-white/10"
-                        alt="Company Icon"
+                        src={job.platform === 'linkedin' ? 'https://cdn-icons-png.flaticon.com/512/174/174857.png' : 
+                             job.platform === 'naukri' ? 'https://img.naukimg.com/s/0/0/i/naukri-identity/naukri_Logo.png' : 
+                             'https://www.indeed.com/favicon.ico'}
+                        className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 object-contain p-2"
+                        alt={`${job.platform} icon`}
                     />
                     <div className="flex flex-col min-w-0">
-                        <span className="text-sm font-bold text-muted-foreground tracking-tight underline hover:text-white transition-all cursor-pointer">
+                        <span 
+                            onClick={() => window.open(job.job_url, '_blank')}
+                            className="text-sm font-bold text-muted-foreground tracking-tight underline hover:text-white transition-all cursor-pointer"
+                        >
                             {job.company}
                         </span>
                         <h3 className="text-xl font-bold leading-tight truncate text-white">
@@ -93,8 +98,17 @@ const JobCard: React.FC<JobCardProps> = ({ job, index }) => {
                 <div className={`px-3 py-1 border rounded-full text-[10px] font-black uppercase tracking-widest ${platformColor[job.platform]}`}>
                     {job.platform}
                 </div>
+                {job.work_style && (
+                    <div className={`px-3 py-1 border rounded-full text-[10px] font-black uppercase tracking-widest ${
+                        job.work_style === 'Remote' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
+                        job.work_style === 'Hybrid' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                        'bg-white/5 border-white/10 text-muted-foreground'
+                    }`}>
+                        {job.work_style}
+                    </div>
+                )}
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    <Clock className="w-3 h-3" /> 3h ago
+                    <Clock className="w-3 h-3" /> {job.posted_hours > 0 ? `${Math.round(job.posted_hours)}h ago` : 'Recently'}
                 </div>
             </div>
 
@@ -104,15 +118,21 @@ const JobCard: React.FC<JobCardProps> = ({ job, index }) => {
                     <AlertTriangle className="w-3 h-3" /> Missing Skills
                 </span>
                 <div className="flex flex-wrap gap-2">
-                    {job.missing_skills.length > 0 ? (
-                        job.missing_skills.map(s => (
-                            <span key={s} className="px-3 py-1 bg-red-400/5 text-red-300 border border-red-400/10 rounded-lg text-xs font-medium">
-                                {s}
+                    {job.match_score > 0 ? (
+                        job.missing_skills.length > 0 ? (
+                            job.missing_skills.map(s => (
+                                <span key={s} className="px-3 py-1 bg-red-400/5 text-red-300 border border-red-400/10 rounded-lg text-xs font-medium">
+                                    {s}
+                                </span>
+                            ))
+                        ) : (
+                            <span className="text-xs text-green-400 font-bold flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3 h-3" /> Fully Matched!
                             </span>
-                        ))
+                        )
                     ) : (
-                        <span className="text-xs text-green-400 font-bold flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3 h-3" /> Fully Matched!
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest animate-pulse">
+                            Awaiting AI Analysis...
                         </span>
                     )}
                 </div>

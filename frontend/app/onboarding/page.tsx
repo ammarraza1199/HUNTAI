@@ -11,7 +11,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "../../lib/supabase";
+import { authAPI } from "../../lib/auth";
+import { api } from "../../lib/api";
 
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import Step1_ApiKey from "@/components/onboarding/Step1_ApiKey";
@@ -41,10 +42,10 @@ export default function OnboardingPage() {
     });
 
     useEffect(() => {
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) router.push("/login");
-            setUser(user);
+        const checkUser = () => {
+            const userData = authAPI.getUser();
+            if (!userData) router.push("/login");
+            setUser(userData);
         };
         checkUser();
     }, []);
@@ -55,16 +56,8 @@ export default function OnboardingPage() {
     const handleFinish = async () => {
         setLoading(true);
         try {
-            // Update Supabase Profile in one shot
-            const { error } = await supabase.from('profiles').update({
-                onboarding_complete: true,
-                groq_key_validated: true,
-                default_engine: data.engine,
-                default_delay: data.delay,
-                default_max_per_platform: data.max_per_platform
-            }).eq('id', user.id);
-
-            if (error) throw error;
+            // Mock profile update as backend /api/profile is not yet implemented
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             // Save Groq key locally for security (never DB)
             localStorage.setItem('huntai_groq_key', data.groq_key);

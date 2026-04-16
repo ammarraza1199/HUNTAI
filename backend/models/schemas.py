@@ -10,7 +10,7 @@ from uuid import UUID
 # ─── Auth / User Models ───────────────────────────────────────────────────────
 
 class UserProfile(BaseModel):
-    id: UUID
+    id: str
     full_name: str
     groq_key_validated: bool
     onboarding_complete: bool
@@ -20,6 +20,12 @@ class UserProfile(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    default_engine: Optional[str] = None
+    default_delay: Optional[int] = None
+    default_max_per_platform: Optional[int] = None
+
 # ─── Resume Parsing Models ────────────────────────────────────────────────────
 
 class ResumeParseResponse(BaseModel):
@@ -27,6 +33,8 @@ class ResumeParseResponse(BaseModel):
     email: Optional[str]
     phone: Optional[str]
     skills: List[str]
+    experience: List[Any] = []
+    education: List[Any] = []
     experience_years: float
     summary: str
     raw_text_preview: Optional[str]
@@ -35,7 +43,7 @@ class ResumeParseResponse(BaseModel):
 
 class PipelineStartRequest(BaseModel):
     query: str
-    location: str
+    location: Optional[str] = "Global"
     experience_level: str # entry|mid|senior|lead
     platforms: List[str] # ["linkedin", "naukri", "indeed"]
     engine: str = "playwright" # playwright|sb|nd
@@ -44,45 +52,50 @@ class PipelineStartRequest(BaseModel):
     resume_data: Dict[str, Any] # The fully parsed resume JSON
 
 class PipelineStartResponse(BaseModel):
-    run_id: UUID
+    run_id: str
     status: str = "started"
 
 # ─── Job Records Models ───────────────────────────────────────────────────────
 
 class JobRecord(BaseModel):
-    id: UUID
-    run_id: UUID
+    id: Optional[str] = None
+    run_id: str
     title: str
     company: str
     location: str
     platform: str
-    job_url: HttpUrl
-    match_score: int
-    missing_skills: List[str]
-    suggestion: str
-    cover_letter: str
-    posted_at: Optional[datetime]
+    job_url: str
+    match_score: Optional[int] = 0
+    missing_skills: List[str] = []
+    suggestion: Optional[str] = ""
+    cover_letter: Optional[str] = ""
+    work_style: Optional[str] = "On-site"
+    posted_at: Optional[datetime] = None
+    posted_hours: Optional[float] = 0.0
     scraped_at: datetime = Field(default_factory=datetime.utcnow)
 
 class JobRunSummary(BaseModel):
-    id: UUID
+    id: str
     query: str
     location: str
     status: str
-    total_jobs_found: int
-    avg_match_score: Optional[float]
-    started_at: datetime
-    completed_at: Optional[datetime]
+    platforms: List[str] = []
+    total_jobs_found: Optional[int] = 0
+    avg_match_score: Optional[int] = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 # ─── Usage / Logs Models ──────────────────────────────────────────────────────
 
 class UsageLimits(BaseModel):
     runs_today: int
-    runs_limit: int = 3
+    runs_limit: int = 50
+    total_runs: int = 0
+    total_jobs: int = 0
     resets_at: datetime
 
 class ErrorLogRecord(BaseModel):
-    id: UUID
+    id: str
     level: str
     phase: str
     platform: Optional[str]

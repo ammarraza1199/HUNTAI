@@ -10,19 +10,43 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Zap, Clock, Settings, HelpCircle, LogOut, ChevronRight } from "lucide-react";
-import { supabase } from "../../lib/supabase";
+import { authAPI } from "../../lib/auth";
 
 const Sidebar: React.FC = () => {
     const pathname = usePathname();
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
+    const [usage, setUsage] = useState<any>({ runs_today: 0, runs_limit: 3 });
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
+        const fetchUsage = async () => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/usage`, {
+                    headers: { "Authorization": `Bearer ${localStorage.getItem("huntai_access_token")}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setUsage(data);
+                }
+            } catch (err) {
+                console.error("Failed to fetch usage:", err);
+            } finally {
+                setLoading(false);
+            }
         };
+
+        const fetchUser = () => {
+            const userData = authAPI.getUser();
+            setUser(userData);
+        };
+        
         fetchUser();
+        fetchUsage();
+        
+        // Refresh usage periodically or on event
+        const interval = setInterval(fetchUsage, 30000); 
+        return () => clearInterval(interval);
     }, []);
 
     const navItems = [
@@ -32,9 +56,8 @@ const Sidebar: React.FC = () => {
         { name: "Guide", href: "/guide", icon: <HelpCircle className="w-5 h-5" /> }
     ];
 
-    const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        router.push("/login");
+    const handleSignOut = () => {
+        authAPI.logout();
     };
 
     return (
@@ -80,34 +103,43 @@ const Sidebar: React.FC = () => {
                 <div className="p-4 glass rounded-2xl border border-white/5">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Runs Today</span>
-                        <span className="text-xs font-mono font-bold text-white">2/3</span>
+                        <span className="text-xs font-mono font-bold text-white">
+                            {usage.runs_today}/{usage.runs_limit}
+                        </span>
                     </div>
                     <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 w-[66%] shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                        <div 
+                            className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000" 
+                            style={{ width: `${Math.min((usage.runs_today / usage.runs_limit) * 100, 100)}%` }}
+                        />
                     </div>
                 </div>
 
                 {/* Profile Widget */}
-                <div className="flex items-center justify-between p-2 py-0 border-t border-white/5 pt-6 group">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bold text-indigo-400">
-                            {user?.email?.[0].toUpperCase() || "A"}
+                <div className="flex items-center justify-between p-2 py-0 border-t border-white/5 pt-6">
+                    <div 
+                        onClick={() => router.push("/settings")}
+                        className="flex items-center gap-3 overflow-hidden cursor-pointer hover:bg-white/5 p-2 rounded-xl transition-all group/profile"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bold text-indigo-400 shrink-0 group-hover/profile:border-indigo-500/50 transition-colors">
+                            {user?.full_name?.[0].toUpperCase() || user?.email?.[0].toUpperCase() || "A"}
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="text-[11px] font-bold truncate text-white">
-                                {user?.user_metadata?.full_name || "Ammar Raza"}
+                            <span className="text-[11px] font-bold truncate text-white group-hover/profile:text-indigo-400 transition-colors">
+                                {user?.full_name || "Ammar Raza"}
                             </span>
-                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Premium Agent
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                                {user?.is_premium ? "Premium Agent" : "Free Agent"}
+                                <ChevronRight className="w-2 h-2 opacity-0 group-hover/profile:opacity-100 transition-opacity" />
                             </span>
                         </div>
                     </div>
                     <button 
                         onClick={handleSignOut}
-                        className="p-2 hover:bg-red-500/10 hover:text-red-400 rounded-lg text-muted-foreground transition-all"
+                        className="p-2 hover:bg-red-500/10 hover:text-red-400 rounded-lg text-muted-foreground transition-all shrink-0"
                         aria-label="Sign out"
                     >
-                        <LogOut className="w-5 h-5" />
+                        <LogOut className="w-4 h-4" />
                     </button>
                 </div>
             </div>

@@ -11,11 +11,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Supabase configuration missing in browser environment.');
 }
 
-// Client as a singleton for frontend application state
-export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
-);
+// Client as a safe singleton (won't crash if keys are missing from .env)
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null as any;
 
 // Auth helper for easier session management
 export const getCurrentSession = async () => {

@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabase";
+import { authAPI } from "../../lib/auth";
 import Sidebar from "@/components/shared/Sidebar";
 import MobileBottomNav from "@/components/shared/MobileBottomNav";
 
@@ -21,9 +21,9 @@ export default function DashboardLayout({
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const checkAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
+        const checkAuth = () => {
+            const token = authAPI.getToken();
+            if (!token) {
                 router.push("/login");
             } else {
                 setLoading(false);

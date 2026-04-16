@@ -120,7 +120,7 @@ class ExcelJobExporter:
         ws2.append(["Timestamp", str(run_data.get("started_at", ""))])
         
         # ─── File Saving ────────────────────────────────────────────────────────
-        filename = f"HuntAI_Results_{run_data['query'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        filename = f"HuntAI_Results_{run_data.get('id', 'export')}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
         wb.save(filepath)
         

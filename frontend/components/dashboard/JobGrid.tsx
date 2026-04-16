@@ -17,7 +17,7 @@ const JobGrid: React.FC<JobGridProps> = ({ jobs, status }) => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
             {jobs.map((job, index) => (
-                <JobCard key={job.id} job={job} index={index} />
+                <JobCard key={job.job_url || index} job={job} index={index} />
             ))}
             
             {/* Loading Placements (if running) */}

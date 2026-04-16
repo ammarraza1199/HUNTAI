@@ -6,7 +6,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, MapPin, Zap, Briefcase, ChevronRight, Upload, FileText } from "lucide-react";
+import { X, Search, Zap, Briefcase, ChevronRight, Upload, FileText, ChevronDown } from "lucide-react";
 
 interface LaunchModalProps {
     isOpen: boolean;
@@ -18,13 +18,23 @@ interface LaunchModalProps {
 const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, initialData }) => {
     const [formData, setFormData] = useState({
         query: initialData?.query || "",
-        location: initialData?.location || "Remote",
         experience_level: initialData?.experience_level || "mid",
         platforms: initialData?.platforms || ["linkedin", "naukri", "indeed"],
+        max_per_platform: initialData?.max_per_platform || 20,
         groq_key: localStorage.getItem('huntai_groq_key') || "",
         resume: null as File | null
     });
 
+    const togglePlatform = (p: string) => {
+        setFormData(prev => ({
+            ...prev,
+            platforms: prev.platforms.includes(p)
+                ? prev.platforms.filter((x: string) => x !== p)
+                : [...prev.platforms, p]
+        }));
+    };
+
+    const [isExpDropdownOpen, setIsExpDropdownOpen] = useState(false);
     const [isParsing, setIsParsing] = useState(false);
 
     if (!isOpen) return null;
@@ -32,7 +42,7 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
             {/* Backdrop */}
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -60,52 +70,102 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
 
                 {/* Body */}
                 <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    
+
                     {/* Job Title */}
                     <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Job Title / Keywords</label>
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
-                            <input 
+                            <input
                                 type="text"
                                 value={formData.query}
-                                onChange={(e) => setFormData({...formData, query: e.target.value})}
+                                onChange={(e) => setFormData({ ...formData, query: e.target.value })}
                                 placeholder="e.g. Senior Frontend Engineer"
                                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                             />
                         </div>
                     </div>
 
-                    {/* Location */}
+                    {/* Experience Level & Search Depth */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Location</label>
-                            <div className="relative">
-                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
-                                <input 
-                                    type="text"
-                                    value={formData.location}
-                                    onChange={(e) => setFormData({...formData, location: e.target.value})}
-                                    placeholder="e.g. Remote, NYC"
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                                />
-                            </div>
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Experience</label>
+                                <div className="relative">
+                                    <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsExpDropdownOpen(!isExpDropdownOpen)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 flex items-center justify-between font-bold"
+                                    >
+                                        <span className="capitalize">{formData.experience_level}</span>
+                                        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${isExpDropdownOpen ? "rotate-180" : ""}`} />
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {isExpDropdownOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                className="absolute z-50 w-full mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+                                            >
+                                                {[
+                                                    { id: "entry", label: "Entry" },
+                                                    { id: "mid", label: "Mid-Level" },
+                                                    { id: "senior", label: "Senior" },
+                                                    { id: "lead", label: "Lead" }
+                                                ].map((lvl) => (
+                                                    <div
+                                                        key={lvl.id}
+                                                        onClick={() => {
+                                                            setFormData({ ...formData, experience_level: lvl.id });
+                                                            setIsExpDropdownOpen(false);
+                                                        }}
+                                                        className={`px-4 py-3 text-sm cursor-pointer transition-all ${
+                                                            formData.experience_level === lvl.id 
+                                                                ? "bg-indigo-600 text-white" 
+                                                                : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                                                        }`}
+                                                    >
+                                                        {lvl.label}
+                                                    </div>
+                                                ))}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Experience</label>
-                            <div className="relative">
-                                <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
-                                <select 
-                                    value={formData.experience_level}
-                                    onChange={(e) => setFormData({...formData, experience_level: e.target.value})}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none transition-all"
+                             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Search Depth</label>
+                             <div className="flex items-center justify-center h-[58px] bg-white/5 border border-white/10 rounded-2xl">
+                                <input 
+                                    type="number"
+                                    value={formData.max_per_platform}
+                                    onChange={(e) => setFormData({ ...formData, max_per_platform: parseInt(e.target.value) || 20 })}
+                                    className="w-12 bg-transparent text-indigo-400 font-bold text-center focus:outline-none"
+                                    min="5"
+                                    max="50"
+                                />
+                             </div>
+                        </div>
+                    </div>
+
+                    {/* Target Platforms */}
+                    <div className="space-y-4 pt-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Target Platforms</label>
+                        <div className="flex gap-3">
+                            {["linkedin", "naukri", "indeed"].map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={() => togglePlatform(p)}
+                                    className={`flex-1 py-3 px-2 rounded-xl border text-[10px] font-black uppercase tracking-tighter transition-all ${formData.platforms.includes(p)
+                                            ? "bg-indigo-600/10 border-indigo-500/40 text-indigo-400"
+                                            : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10"
+                                        }`}
                                 >
-                                    <option value="entry" className="bg-zinc-900">Entry</option>
-                                    <option value="mid" className="bg-zinc-900">Mid-Level</option>
-                                    <option value="senior" className="bg-zinc-900">Senior</option>
-                                    <option value="lead" className="bg-zinc-900">Lead</option>
-                                </select>
-                            </div>
+                                    {p}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -114,10 +174,10 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Groq API Key (Stored Locally)</label>
                         <div className="relative">
                             <Zap className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400" />
-                            <input 
+                            <input
                                 type="password"
                                 value={formData.groq_key}
-                                onChange={(e) => setFormData({...formData, groq_key: e.target.value})}
+                                onChange={(e) => setFormData({ ...formData, groq_key: e.target.value })}
                                 placeholder="gsk_xxxxxxxxxxxxxxxxxxxx"
                                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium"
                             />
@@ -129,11 +189,11 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Your Resume (PDF/DOCX)</label>
                         {!formData.resume ? (
                             <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 hover:border-indigo-500/50 rounded-2xl cursor-pointer bg-white/5 hover:bg-indigo-500/5 transition-all group">
-                                <input 
-                                    type="file" 
-                                    className="hidden" 
-                                    accept=".pdf,.docx" 
-                                    onChange={(e) => setFormData({...formData, resume: e.target.files?.[0] || null})}
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.docx"
+                                    onChange={(e) => setFormData({ ...formData, resume: e.target.files?.[0] || null })}
                                 />
                                 <Upload className="w-6 h-6 text-muted-foreground group-hover:text-indigo-400 group-hover:-translate-y-1 transition-all mb-2" />
                                 <span className="text-xs font-bold text-muted-foreground group-hover:text-indigo-300">Click to upload your resume</span>
@@ -149,8 +209,8 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
                                         <span className="text-[10px] text-indigo-300/60 font-bold uppercase tracking-tighter">Ready for parsing</span>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={() => setFormData({...formData, resume: null})}
+                                <button
+                                    onClick={() => setFormData({ ...formData, resume: null })}
                                     className="p-2 hover:bg-white/10 rounded-lg text-muted-foreground hover:text-red-400 transition-colors"
                                 >
                                     <X className="w-4 h-4" />
@@ -162,13 +222,13 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
 
                 {/* Footer Actions */}
                 <div className="p-8 bg-white/5 border-t border-white/5 flex gap-4">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-sm font-bold text-muted-foreground transition-all"
                     >
                         Cancel
                     </button>
-                    <button 
+                    <button
                         onClick={() => onLaunch(formData)}
                         disabled={!formData.query || !formData.groq_key}
                         className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-500/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 group"

@@ -1,25 +1,27 @@
 # backend/requirements.txt
 # HuntAI - AI Job Hunter Agent
-# All core dependencies for backend execution
+# Core dependencies (Optimized for SeleniumBase)
 
 fastapi
 uvicorn
-gspread
 google-auth
+google-auth-oauthlib
 openpyxl
 pydantic
 pydantic-settings
+pydantic[email]
 httpx==0.24.1
-pyjwt
 python-multipart
 slowapi
 pdfplumber
 python-docx
-playwright
-supabase
+motor
+dnspython
 python-dotenv
-asyncio-throttle
-psycopg2-binary
 groq
 seleniumbase
-nodriver
+python-jose[cryptography]
+passlib[bcrypt]
+authlib
+email-validator
+psutil
