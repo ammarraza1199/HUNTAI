@@ -102,7 +102,7 @@ const Sidebar: React.FC = () => {
                 {/* Usage Stats Dashboard in Sidebar */}
                 <div className="p-4 glass rounded-2xl border border-white/5">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Runs Today</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Used Today</span>
                         <span className="text-xs font-mono font-bold text-white">
                             {usage.runs_today}/{usage.runs_limit}
                         </span>
@@ -126,7 +126,7 @@ const Sidebar: React.FC = () => {
                         </div>
                         <div className="flex flex-col min-w-0">
                             <span className="text-[11px] font-bold truncate text-white group-hover/profile:text-indigo-400 transition-colors">
-                                {user?.full_name || "Ammar Raza"}
+                                {user?.full_name || user?.email?.split('@')[0] || "Pro User"}
                             </span>
                             <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
                                 {user?.is_premium ? "Premium Agent" : "Free Agent"}

@@ -173,9 +173,13 @@ async def start_pipeline(
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     runs_today = user_record.get("runs_log", {}).get(today_str, 0) if user_record else 0
     
-    logger.info(f"Rate Limit Check: User {user['id']} has {runs_today} runs logged for {today_str}.")
-    if runs_today >= 50:
-        raise HTTPException(status_code=429, detail=f"Daily job hunt limit reached ({runs_today}/50 runs). Try again tomorrow.")
+    # Plan-aware limit enforcement
+    is_premium = user_record.get("is_premium", False)
+    limit = 50 if is_premium else 3
+    
+    logger.info(f"Rate Limit Check: User {user['id']} has {runs_today} runs logged for {today_str}. (Limit: {limit})")
+    if runs_today >= limit:
+        raise HTTPException(status_code=429, detail=f"Daily job hunt limit reached ({runs_today}/{limit} runs). Try again tomorrow.")
     
     # 1. Check if user already has an active pipeline running to prevent duplicates
     active_user_pipeline = next((p for p in active_pipelines.values() if p.user_id == str(user["id"]) and p.is_running), None)
