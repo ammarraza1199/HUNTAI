@@ -294,7 +294,6 @@ async def list_runs(user: dict = Depends(get_current_user)):
             "status": r.get("status")
         } for r in runs
     ]
- village
 
 @app.get("/api/runs/{run_id}/jobs", response_model=List[JobRecord])
 async def list_run_jobs(run_id: str, user: dict = Depends(get_current_user)):
