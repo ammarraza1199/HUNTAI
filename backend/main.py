@@ -181,7 +181,13 @@ async def start_pipeline(
     if runs_today >= limit:
         raise HTTPException(status_code=429, detail=f"Daily job hunt limit reached ({runs_today}/{limit} runs). Try again tomorrow.")
     
-    # 1. Check if user already has an active pipeline running to prevent duplicates
+    # 0. Check if there's already a RECENT pending config for this user to block race conditions
+    for rid, cfg in pending_configs.items():
+        if cfg.get("user_id") == str(user["id"]):
+            logger.info(f"Blocked duplicate pending run for user {user['id']}")
+            return {"run_id": rid, "status": "already_starting"}
+
+    # 1. Check if user already has an active pipeline running
     active_user_pipeline = next((p for p in active_pipelines.values() if p.user_id == str(user["id"]) and p.is_running), None)
     if active_user_pipeline:
         logger.info(f"User {user['id']} already has an active pipeline {active_user_pipeline.run_id}. Reusing.", user_id=user['id'])
@@ -198,6 +204,7 @@ async def start_pipeline(
     run_id_str = str(run_id)
     
     pending_configs[run_id_str] = {
+        "user_id": str(user["id"]), # Track owner to prevent race conditions
         "resume_data": pipeline_req.resume_data,
         "query": pipeline_req.query,
         "max_per_platform": pipeline_req.max_per_platform

@@ -224,16 +224,30 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
                 <div className="p-8 bg-white/5 border-t border-white/5 flex gap-4">
                     <button
                         onClick={onClose}
+                        disabled={isParsing}
                         className="flex-1 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-sm font-bold text-muted-foreground transition-all"
                     >
                         Cancel
                     </button>
                     <button
-                        onClick={() => onLaunch(formData)}
-                        disabled={!formData.query || !formData.groq_key}
+                        onClick={() => {
+                            // isParsing serves as our 'Lock' here
+                            setIsParsing(true);
+                            onLaunch(formData);
+                        }}
+                        disabled={!formData.query || !formData.groq_key || isParsing}
                         className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-500/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 group"
                     >
-                        Launch AI Hunt <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        {isParsing ? (
+                            <div className="flex items-center gap-2">
+                                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                Launching...
+                            </div>
+                        ) : (
+                            <>
+                                Launch AI Hunt <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </>
+                        )}
                     </button>
                 </div>
             </motion.div>
