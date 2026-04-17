@@ -6,7 +6,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, Zap, Briefcase, ChevronRight, Upload, FileText, ChevronDown } from "lucide-react";
+import { X, Search, Zap, Briefcase, ChevronRight, Upload, FileText, ChevronDown, Globe } from "lucide-react";
 
 interface LaunchModalProps {
     isOpen: boolean;
