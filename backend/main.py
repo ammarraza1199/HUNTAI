@@ -266,32 +266,35 @@ async def stream_pipeline(
         }
     )
 
+@app.get("/api/active-run")
+async def get_active_run(user: dict = Depends(get_current_user)):
+    """Checks if the user has a currently running pipeline and returns its ID."""
+    active_user_pipeline = next((p for p in active_pipelines.values() if p.user_id == str(user["id"]) and p.is_running), None)
+    if active_user_pipeline:
+        return {"run_id": active_user_pipeline.run_id, "status": "running"}
+    return {"run_id": None, "status": "idle"}
+
 @app.get("/api/runs", response_model=List[JobRunSummary])
 async def list_runs(user: dict = Depends(get_current_user)):
     """Returns past job hunt history for the current user from MongoDB."""
     db = MongoDB.get_db()
     runs_col = db["runs"]
     user_id_str = str(user["id"])
-    # Convert to list and project to match JobRunSummary model
     cursor = runs_col.find({"user_id": user_id_str}).sort("created_at", -1)
-    runs = await cursor.to_list(length=100)
+    runs = await cursor.to_list(length=50)
     
-    # Map MongoDB fields to model fields + Fallbacks for legacy records
-    for run in runs:
-        run["id"] = run.get("run_id")
-        # Ensure started_at is never null for the UI
-        if not run.get("started_at") and run.get("created_at"):
-            run["started_at"] = run.get("created_at")
-        
-        # Backward compatibility for field name changes
-        if not run.get("total_jobs_found") and run.get("job_count"):
-            run["total_jobs_found"] = run.get("job_count")
-            
-        # Round the average score for a cleaner UI
-        if run.get("avg_match_score") is not None:
-            run["avg_match_score"] = int(round(run["avg_match_score"]))
-            
-    return runs
+    return [
+        {
+            "id": r.get("run_id"),
+            "query": r.get("query"),
+            "location": r.get("location"),
+            "total_jobs": r.get("total_jobs_found", 0),
+            "avg_score": int(round(r.get("avg_match_score", 0))),
+            "created_at": r.get("created_at"),
+            "status": r.get("status")
+        } for r in runs
+    ]
+ village
 
 @app.get("/api/runs/{run_id}/jobs", response_model=List[JobRecord])
 async def list_run_jobs(run_id: str, user: dict = Depends(get_current_user)):

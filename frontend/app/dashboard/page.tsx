@@ -37,8 +37,25 @@ export default function DashboardPage() {
         resume_data: null as any
     });
 
+    // Auto-Discovery & Reconnection Effect
+    useEffect(() => {
+        const discoverActiveRun = async () => {
+            try {
+                const data = await api.get<any>("/api/active-run");
+                if (data.run_id && status === "idle") {
+                    console.log("Found active session:", data.run_id);
+                    toast.info("Resuming your active search...");
+                    startPipeline(null, data.run_id);
+                }
+            } catch (err) {
+                console.warn("Active run discovery skipped:", err);
+            }
+        };
+        discoverActiveRun();
+    }, []);
+
     // Live Streaming Core Logic
-    const startPipeline = async (config?: any) => {
+    const startPipeline = async (config?: any, resumedRunId?: string) => {
         const finalConfig = config || huntPrefs;
         const groqKey = config?.groq_key || localStorage.getItem('huntai_groq_key') || "";
         
@@ -52,73 +69,83 @@ export default function DashboardPage() {
         if (config?.groq_key) localStorage.setItem('huntai_groq_key', config.groq_key);
 
         setStatus("running");
-        setJobs([]);
-        setLogs([]);
+        if (!resumedRunId) {
+            setJobs([]);
+            setLogs([]);
+        }
         setProgress({ phase: 1, percent: 10 });
 
         try {
-            let resumeData = finalConfig.resume_data;
+            let run_id = resumedRunId;
 
-            // 1. Auto-Parse Resume if file is provided in config
-            if (config?.resume) {
-                setLogs(prev => [...prev, { 
-                    type: 'log',
-                    level: 'INFO', 
-                    message: "📑 New resume detected. Parsing career history...", 
-                    phase: 'parsing',
-                    timestamp: new Date().toISOString()
-                }]);
-                try {
-                    resumeData = await api.uploadResume(config.resume, groqKey);
+            if (!run_id) {
+                let resumeData = finalConfig.resume_data;
+
+                // 1. Auto-Parse Resume if file is provided in config
+                if (config?.resume) {
                     setLogs(prev => [...prev, { 
                         type: 'log',
-                        level: 'SUCCESS', 
-                        message: `✅ Profile identified: ${resumeData.name}`, 
+                        level: 'INFO', 
+                        message: "📑 New resume detected. Parsing career history...", 
                         phase: 'parsing',
                         timestamp: new Date().toISOString()
                     }]);
-                } catch (err: any) {
-                    toast.error("Resume parsing failed. Hunt aborted.");
-                    setLogs(prev => [...prev, { 
-                        type: 'log',
-                        level: 'ERROR', 
-                        message: `❌ Critical Error: ${err.message}`, 
-                        phase: 'parsing',
-                        timestamp: new Date().toISOString()
-                    }]);
-                    setStatus("failed");
-                    return; // DO NOT JUMP TO NEXT STEP
+                    try {
+                        resumeData = await api.uploadResume(config.resume, groqKey);
+                        setLogs(prev => [...prev, { 
+                            type: 'log',
+                            level: 'SUCCESS', 
+                            message: `✅ Profile identified: ${resumeData.name}`, 
+                            phase: 'parsing',
+                            timestamp: new Date().toISOString()
+                        }]);
+                    } catch (err: any) {
+                        toast.error("Resume parsing failed. Hunt aborted.");
+                        setLogs(prev => [...prev, { 
+                            type: 'log',
+                            level: 'ERROR', 
+                            message: `❌ Critical Error: ${err.message}`, 
+                            phase: 'parsing',
+                            timestamp: new Date().toISOString()
+                        }]);
+                        setStatus("failed");
+                        return; // DO NOT JUMP TO NEXT STEP
+                    }
                 }
+
+                if (!resumeData) {
+                    setLogs(prev => [...prev, { 
+                        type: 'log',
+                        level: 'WARNING', 
+                        message: "⚠️ No resume data provided. Matching will be less precise.", 
+                        phase: 'parsing',
+                        timestamp: new Date().toISOString()
+                    }]);
+                    resumeData = { skills: [], experience: [] };
+                }
+
+                setHuntPrefs({ ...finalConfig, resume_data: resumeData });
+                setIsLaunchModalOpen(false);
+
+                // 2. Initialize Run via Backend
+                const startReq = {
+                    query: finalConfig.query,
+                    experience_level: finalConfig.experience_level,
+                    platforms: finalConfig.platforms,
+                    max_per_platform: finalConfig.max_per_platform,
+                    engine: "playwright",
+                    resume_data: resumeData
+                };
+                const res = await api.post<any>("/api/start-pipeline", startReq, true);
+                run_id = res.run_id;
+            } else {
+                setIsLaunchModalOpen(false);
             }
 
-            if (!resumeData) {
-                setLogs(prev => [...prev, { 
-                    type: 'log',
-                    level: 'WARNING', 
-                    message: "⚠️ No resume data provided. Matching will be less precise.", 
-                    phase: 'parsing',
-                    timestamp: new Date().toISOString()
-                }]);
-                resumeData = { skills: [], experience: [] };
-            }
-
-            setHuntPrefs({ ...finalConfig, resume_data: resumeData });
-            setIsLaunchModalOpen(false);
-
-            // 2. Initialize Run via Backend
-            const startReq = {
-                query: finalConfig.query,
-                experience_level: finalConfig.experience_level,
-                platforms: finalConfig.platforms,
-                max_per_platform: finalConfig.max_per_platform,
-                engine: "playwright",
-                resume_data: resumeData
-            };
-            const { run_id } = await api.post<any>("/api/start-pipeline", startReq, true);
-            setCurrentRunId(run_id);
+            setCurrentRunId(run_id!);
 
             // 2. Connect to SSE Stream
-            await api.streamPipeline(run_id, groqKey, finalConfig, (event: any) => {
+            await api.streamPipeline(run_id!, groqKey, finalConfig, (event: any) => {
                 // The new pipeline.py emits data nested inside an 'event.data' object
                 const payload = event.data;
 
