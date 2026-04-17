@@ -130,6 +130,7 @@ export default function DashboardPage() {
                 // 2. Initialize Run via Backend
                 const startReq = {
                     query: finalConfig.query,
+                    location: finalConfig.location || "Global",
                     experience_level: finalConfig.experience_level,
                     platforms: finalConfig.platforms,
                     max_per_platform: finalConfig.max_per_platform,

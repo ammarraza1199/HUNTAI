@@ -207,6 +207,7 @@ async def start_pipeline(
         "user_id": str(user["id"]), # Track owner to prevent race conditions
         "resume_data": pipeline_req.resume_data,
         "query": pipeline_req.query,
+        "location": pipeline_req.location,
         "max_per_platform": pipeline_req.max_per_platform
     }
     

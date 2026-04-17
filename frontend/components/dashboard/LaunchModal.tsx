@@ -18,6 +18,7 @@ interface LaunchModalProps {
 const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, initialData }) => {
     const [formData, setFormData] = useState({
         query: initialData?.query || "",
+        location: initialData?.location || "Remote",
         experience_level: initialData?.experience_level || "mid",
         platforms: initialData?.platforms || ["linkedin", "naukri", "indeed"],
         max_per_platform: initialData?.max_per_platform || 20,
@@ -71,18 +72,33 @@ const LaunchModal: React.FC<LaunchModalProps> = ({ isOpen, onClose, onLaunch, in
                 {/* Body */}
                 <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
 
-                    {/* Job Title */}
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Job Title / Keywords</label>
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
-                            <input
-                                type="text"
-                                value={formData.query}
-                                onChange={(e) => setFormData({ ...formData, query: e.target.value })}
-                                placeholder="e.g. Senior Frontend Engineer"
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                            />
+                    {/* Job Title & Location */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Job Title</label>
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400" />
+                                <input
+                                    type="text"
+                                    value={formData.query}
+                                    onChange={(e) => setFormData({ ...formData, query: e.target.value })}
+                                    placeholder="e.g. Backend Engineer"
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-bold"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Target Location</label>
+                            <div className="relative">
+                                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                                <input
+                                    type="text"
+                                    value={formData.location}
+                                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                    placeholder="e.g. Remote, UK, India"
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-bold"
+                                />
+                            </div>
                         </div>
                     </div>
 
