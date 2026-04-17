@@ -263,8 +263,8 @@ export default function SettingsPage() {
                                 <h4 className="text-xl font-bold">Execution Usage & Limits</h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                                     <div className="p-6 glass rounded-2xl border border-white/5 flex flex-col gap-2">
-                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Runs Available Today</span>
-                                        <span className="text-4xl font-mono font-black text-indigo-400">{usage.runs_limit - usage.runs_today}/{usage.runs_limit}</span>
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Used Today</span>
+                                        <span className="text-4xl font-mono font-black text-indigo-400">{usage.runs_today}/{usage.runs_limit}</span>
                                         <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mt-4">
                                             <div className="h-full bg-indigo-500" style={{ width: `${(usage.runs_today / usage.runs_limit) * 100}%` }} />
                                         </div>
